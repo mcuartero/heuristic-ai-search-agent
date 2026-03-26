@@ -51,6 +51,31 @@ def apply_eat(board: dict, coord: Coord, dest: Coord):
     nb[dest] = cell
     return nb
 
+def blue_is_pushable_off_board(blue_coord: Coord, board: dict, total_red_tokens: int) -> bool:
+    # checks if height is enough to cascade the blue token off the board
+    blue_dist_row = min(blue_coord.r, abs(BOARD_N - 1 - blue_coord.r))
+    blue_dist_col = min(blue_coord.c, abs(BOARD_N - 1 - blue_coord.c))
+    if total_red_tokens >= blue_dist_row or total_red_tokens >= blue_dist_col:
+        return True
+    return False
+
+
+def is_solvable(board: dict):
+    """Check if board is solvable either by eating or cascading"""
+    total_red_tokens = sum(cs.height for cs in board.values() if cs.color == PlayerColor.RED)
+
+    for coord, cs in board.items():
+        if cs.color != PlayerColor.BLUE:
+            continue
+        can_eat = total_red_tokens >= cs.height
+        can_push = blue_is_pushable_off_board(coord, board, total_red_tokens)
+        if not can_eat and not can_push:
+            return False
+
+    return True
+
+
+
 def search(
     board: dict[Coord, CellState]
 ) -> list[Action] | None:
