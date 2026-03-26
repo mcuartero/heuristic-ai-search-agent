@@ -4,6 +4,16 @@
 from .core import CellState, Coord, Direction, Action, MoveAction, EatAction, CascadeAction
 from .utils import render_board
 
+def get_distance(a: Coord, b: Coord):
+    """The Manhattan distance between two coordinates."""
+    return abs(a.r - b.r) + abs(a.c - b.c)
+
+def heuristic(red_stacks: dict, blue_stacks: dict):
+    """Heuristic: Sum of distances from each Blue stack to the nearest Red stack."""
+    total_dist = 0
+    for b_position in blue_stacks:
+        total_dist += min(get_distance(b_position, r_position) for r_position in red_stacks)
+    return total_dist
 
 def search(
     board: dict[Coord, CellState]
@@ -40,4 +50,5 @@ def search(
     return [
         MoveAction(Coord(3, 3), Direction.Down),
         EatAction(Coord(4, 3), Direction.Down),
+        CascadeAction(Coord(5, 3), Direction.Down),
     ]
