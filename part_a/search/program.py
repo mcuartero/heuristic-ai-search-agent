@@ -31,25 +31,18 @@ def in_bounds(r: int, c: int):
 def blue_count(enc: tuple):
     return sum(1 for _, _, col, _ in enc if col == BLUE)
 
-def apply_move(board: dict, coord: Coord, dest: Coord):
-    """Move a Red stack to destination. If destination is empy, move there. If destination is same colour, merge."""
-    cell = board[coord]
-    dest_cell = board.get(dest)
-    nb = dict(board)
-    del nb[coord]
-    if dest_cell is None:
-        nb[dest] = cell
+def apply_move(board: dict, src: Coord, dest: Coord):
+    new_board = dict(board)
+    moving_stack = new_board.pop(src)
+    if dest in new_board:
+        target = new_board[dest]
+        if target.color == PlayerColor.RED:
+            new_board[dest] = CellState(PlayerColor.RED, moving_stack.height + target.height)
+        else:
+            new_board[dest] = moving_stack
     else:
-        nb[dest] = CellState(PlayerColor.RED, cell.height + dest_cell.height)
-    return nb
-
-def apply_eat(board: dict, coord: Coord, dest: Coord):
-    """Remove the eaten stack and move the eater there."""
-    cell = board[coord]
-    nb = dict(board)
-    del nb[coord]
-    nb[dest] = cell
-    return nb
+        new_board[dest] = moving_stack
+    return new_board
 
 def push_stack(board: dict, coord: Coord, dr: int, dc: int):
     """Push a stack in the given direction, moving it one cell and pushing any stacks in the way."""
@@ -64,6 +57,21 @@ def push_stack(board: dict, coord: Coord, dr: int, dc: int):
     push_stack(board, next_coord, dr, dc)
     del board[coord]
     board[next_coord] = stack
+
+def apply_cascade(board: dict, src: Coord, direction: Direction):
+    new_board = dict(board)
+    h = new_board.pop(src).height
+    dr, dc = direction.value.r, direction.value.c
+ 
+    for i in range(1, h + 1):
+        pr, pc = src.r + dr * i, src.c + dc * i
+        if not in_bounds(pr, pc):
+            continue
+        place = Coord(pr, pc)
+        push_stack(new_board, place, dr, dc)
+        new_board[place] = CellState(PlayerColor.RED, 1)
+ 
+    return new_board
 
 def search(
     board: dict[Coord, CellState]
@@ -101,31 +109,6 @@ def search(
     #     MoveAction(Coord(3, 3), Direction.Down),
     #     EatAction(Coord(4, 3), Direction.Down)
     # ]
-    
-    recorded_actions = []
-    
-    test_board = {
-        Coord(0, 0): CellState(PlayerColor.RED, 2),
-        Coord(0, 2): CellState(PlayerColor.BLUE, 1)
-    }
-
-    print(render_board(test_board, ansi=True))
-    
-    result_board = apply_move(test_board, Coord(0, 0), Coord(0, 1))
-    result_board = apply_eat(result_board, Coord(0, 1), Coord(0, 2))
-    recorded_actions.append(MoveAction(Coord(0, 0), Direction.Right))
-    recorded_actions.append(MoveAction(Coord(0, 1), Direction.Right))
-
-    print(render_board(result_board, ansi=True))
-
-    print("\n--- TEST MOVE LIST ---")
-
-    for i, action in enumerate(recorded_actions, 1):
-        print(f"Step {i}: {action}") 
-        
-    print("----------------------\n")
-
-    return recorded_actions
 
 if __name__ == "__main__":
     # Create a dummy board
