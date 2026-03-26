@@ -1,10 +1,29 @@
 # COMP30024 Artificial Intelligence, Semester 1 2026
 # Project Part A: Single Player Cascade
+import heapq
 
 from .core import CellState, Coord, Direction, Action, MoveAction, EatAction, CascadeAction, BOARD_N, PlayerColor
 from .utils import render_board
 
 RED, BLUE = PlayerColor.RED.value, PlayerColor.BLUE.value
+
+DIRS: list[tuple[Direction, int, int]] = [
+    (d, d.value.r, d.value.c) for d in Direction
+]
+
+def encode(board: dict):
+    return tuple(sorted(
+        (coord.r, coord.c, cell.color.value, cell.height)
+        for coord, cell in board.items()
+    ))
+
+def decode(enc: tuple):
+    return {
+        Coord(r, c): CellState(
+            PlayerColor.RED if col == RED else PlayerColor.BLUE, h
+        )
+        for r, c, col, h in enc
+    }
 
 
 def get_distance(a: Coord, b: Coord):
