@@ -25,17 +25,11 @@ def decode(enc: tuple):
         for r, c, col, h in enc
     }
 
+def in_bounds(r: int, c: int):
+    return 0 <= r < BOARD_N and 0 <= c < BOARD_N
 
-def get_distance(a: Coord, b: Coord):
-    """The Manhattan distance between two coordinates."""
-    return abs(a.r - b.r) + abs(a.c - b.c)
-
-def heuristic(red_stacks: dict, blue_stacks: dict):
-    """Heuristic: Sum of distances from each Blue stack to the nearest Red stack."""
-    total_dist = 0
-    for b_position in blue_stacks:
-        total_dist += min(get_distance(b_position, r_position) for r_position in red_stacks)
-    return total_dist
+def blue_count(enc: tuple):
+    return sum(1 for _, _, col, _ in enc if col == BLUE)
 
 def search(
     board: dict[Coord, CellState]
