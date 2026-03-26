@@ -1,8 +1,11 @@
 # COMP30024 Artificial Intelligence, Semester 1 2026
 # Project Part A: Single Player Cascade
 
-from .core import CellState, Coord, Direction, Action, MoveAction, EatAction, CascadeAction
+from .core import CellState, Coord, Direction, Action, MoveAction, EatAction, CascadeAction, BOARD_N, PlayerColor
 from .utils import render_board
+
+RED, BLUE = PlayerColor.RED.value, PlayerColor.BLUE.value
+
 
 def get_distance(a: Coord, b: Coord):
     """The Manhattan distance between two coordinates."""
@@ -49,6 +52,5 @@ def search(
     # return `None` instead of a list.
     return [
         MoveAction(Coord(3, 3), Direction.Down),
-        EatAction(Coord(4, 3), Direction.Down),
-        CascadeAction(Coord(5, 3), Direction.Down),
+        EatAction(Coord(4, 3), Direction.Down)
     ]
