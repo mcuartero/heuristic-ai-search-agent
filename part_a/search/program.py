@@ -51,6 +51,20 @@ def apply_eat(board: dict, coord: Coord, dest: Coord):
     nb[dest] = cell
     return nb
 
+def push_stack(board: dict, coord: Coord, dr: int, dc: int):
+    """Push a stack in the given direction, moving it one cell and pushing any stacks in the way."""
+    stack = board.get(coord)
+    if stack is None:
+        return
+    nr, nc = coord.r + dr, coord.c + dc
+    if not in_bounds(nr, nc):
+        del board[coord]
+        return
+    next_coord = Coord(nr, nc)
+    push_stack(board, next_coord, dr, dc)
+    del board[coord]
+    board[next_coord] = stack
+
 def blue_is_pushable_off_board(blue_coord: Coord, board: dict, total_red_tokens: int) -> bool:
     # checks if height is enough to cascade the blue token off the board
     blue_dist_row = min(blue_coord.r, abs(BOARD_N - 1 - blue_coord.r))
@@ -97,7 +111,7 @@ def search(
     # The render_board() function is handy for debugging. It will print out a
     # board state in a human-readable format. If your terminal supports ANSI
     # codes, set the `ansi` flag to True to print a colour-coded version!
-    print(render_board(board, ansi=True))
+    # print(render_board(board, ansi=True))
 
     # Do some impressive AI stuff here to find the solution...
     # ...
@@ -108,7 +122,37 @@ def search(
     # output format. Of course, you should instead return the result of your
     # search algorithm. Remember: if no solution is possible for a given input,
     # return `None` instead of a list.
-    return [
-        MoveAction(Coord(3, 3), Direction.Down),
-        EatAction(Coord(4, 3), Direction.Down)
-    ]
+    # return [
+    #     MoveAction(Coord(3, 3), Direction.Down),
+    #     EatAction(Coord(4, 3), Direction.Down)
+    # ]
+    
+    recorded_actions = []
+    
+    test_board = {
+        Coord(0, 0): CellState(PlayerColor.RED, 2),
+        Coord(0, 2): CellState(PlayerColor.BLUE, 1)
+    }
+
+    print(render_board(test_board, ansi=True))
+    
+    result_board = apply_move(test_board, Coord(0, 0), Coord(0, 1))
+    result_board = apply_eat(result_board, Coord(0, 1), Coord(0, 2))
+    recorded_actions.append(MoveAction(Coord(0, 0), Direction.Right))
+    recorded_actions.append(MoveAction(Coord(0, 1), Direction.Right))
+
+    print(render_board(result_board, ansi=True))
+
+    print("\n--- TEST MOVE LIST ---")
+
+    for i, action in enumerate(recorded_actions, 1):
+        print(f"Step {i}: {action}") 
+        
+    print("----------------------\n")
+
+    return recorded_actions
+
+if __name__ == "__main__":
+    # Create a dummy board
+    dummy_board = {} 
+    search(dummy_board)
