@@ -31,6 +31,26 @@ def in_bounds(r: int, c: int):
 def blue_count(enc: tuple):
     return sum(1 for _, _, col, _ in enc if col == BLUE)
 
+def apply_move(board: dict, coord: Coord, dest: Coord):
+    """Move a Red stack to destination. If destination is empy, move there. If destination is same colour, merge."""
+    cell = board[coord]
+    dest_cell = board.get(dest)
+    nb = dict(board)
+    del nb[coord]
+    if dest_cell is None:
+        nb[dest] = cell
+    else:
+        nb[dest] = CellState(PlayerColor.RED, cell.height + dest_cell.height)
+    return nb
+
+def apply_eat(board: dict, coord: Coord, dest: Coord):
+    """Remove the eaten stack and move the eater there."""
+    cell = board[coord]
+    nb = dict(board)
+    del nb[coord]
+    nb[dest] = cell
+    return nb
+
 def search(
     board: dict[Coord, CellState]
 ) -> list[Action] | None:
