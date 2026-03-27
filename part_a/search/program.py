@@ -1,6 +1,7 @@
 # COMP30024 Artificial Intelligence, Semester 1 2026
 # Project Part A: Single Player Cascade
 import heapq
+from operator import __add__
 
 from .core import CellState, Coord, Direction, Action, MoveAction, EatAction, CascadeAction, BOARD_N, PlayerColor
 from .utils import render_board
@@ -96,11 +97,18 @@ def is_solvable(board: dict):
 
     return True
 
+def heuristic(red_coord: Coord, board: dict):
+    """Heuristic function estimating manhatten distance between given red and blue point"""
+    blue_coords = [coord for coord, cs in board.items() if cs.color == PlayerColor.BLUE]
+    
+    dist = []
+    for bc in blue_coords:
+        d = abs(red_coord.r - bc.r) + abs(red_coord.c - bc.c)
+        dist.append(d)
+    return min(dist) if dist else 0
+ 
 
-
-def search(
-    board: dict[Coord, CellState]
-) -> list[Action] | None:
+def search(board: dict[Coord, CellState]) -> list[Action] | None:
     """
     This is the entry point for your submission. You should modify this
     function to solve the search problem discussed in the Part A specification.
@@ -134,6 +142,10 @@ def search(
     #     MoveAction(Coord(3, 3), Direction.Down),
     #     EatAction(Coord(4, 3), Direction.Down)
     # ]
+        
+            
+
+    
 
 if __name__ == "__main__":
     # Create a dummy board
