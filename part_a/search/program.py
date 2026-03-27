@@ -107,6 +107,8 @@ def heuristic(red_coord: Coord, board: dict):
         dist.append(d)
     return min(dist) if dist else 0
  
+def possible_actions(board: dict):
+    return 
 
 def search(board: dict[Coord, CellState]) -> list[Action] | None:
     """
@@ -142,8 +144,39 @@ def search(board: dict[Coord, CellState]) -> list[Action] | None:
     #     MoveAction(Coord(3, 3), Direction.Down),
     #     EatAction(Coord(4, 3), Direction.Down)
     # ]
+    if not is_solvable(board):
+        return None
+    
+    node_queue = []
+    visited = set()
+
+    ## adding all red tokens to create starting queue
+    for coord,cs in board.items():
+        if cs.color == PlayerColor.RED:
+            heapq.heappush(node_queue, (heuristic(coord, board), 0, encode(board), [])) ## item (f, g, state, path)
+            continue
+
+    while node_queue:
+        f, g, enc, path = heapq.heappop(node_queue)
+
+        if enc in visited:
+            continue
+        visited.add(enc)
+
+        ## no blue counters left, return path
+        if blue_count(enc) == 0:
+            return path
         
-            
+        ## check all possible actions for current board state and add to queue
+        for action, new_board in possible_actions(decode(enc)):
+            new_enc = encode(new_board)
+            if new_enc in visited:
+                continue
+
+            new_g = g + 1
+            new_f = new_g + heuristic(coord, decode(new_enc))
+            path = path + [action]
+            heapq.heappush(node_queue, (new_f, new_g, new_enc, path))
 
     
 
