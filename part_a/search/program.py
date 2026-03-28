@@ -202,8 +202,6 @@ def search(board: dict[Coord, CellState]) -> list[Action] | None:
             new_path = path + [action]
             heapq.heappush(node_queue, (new_f, new_g, new_enc, new_path))
 
-    
-
 if __name__ == "__main__":
     # Create a dummy board
     dummy_board = {} 
