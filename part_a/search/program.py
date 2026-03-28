@@ -34,16 +34,28 @@ def blue_count(enc: tuple):
 
 def apply_move(board: dict, src: Coord, dir: Direction):
     dest = src + dir
+
+    # Add if we decide that we want to allow moves that push tokens off the board, but for now just ignore them
+    # if not in_bounds(dest.r, dest.c):
+    #     print(f"Invalid move: {src} + {dir} = {dest} is out of bounds")
+    #     return board
+
     new_board = dict(board)
-    moving_stack = new_board.pop(src)
+    
     if dest in new_board:
         target = new_board[dest]
-        if target.color == PlayerColor.RED:
+
+        if target.color == PlayerColor.BLUE:
+            print(f"Invalid move: {dest} is occupied by a Blue stack")
+            return board 
+        
+        elif target.color == PlayerColor.RED:
+            moving_stack = new_board.pop(src)
             new_board[dest] = CellState(PlayerColor.RED, moving_stack.height + target.height)
-        else:
-            new_board[dest] = moving_stack
-    else:
-        new_board[dest] = moving_stack
+            return new_board
+    
+    moving_stack = new_board.pop(src)
+    new_board[dest] = moving_stack
     return new_board
 
 def push_stack(board: dict, coord: Coord, dr: int, dc: int):
