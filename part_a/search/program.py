@@ -97,53 +97,38 @@ def is_solvable(board: dict):
 
     return True
 
-def heuristic(red_coord: Coord, board: dict):
-    """Heuristic function estimating manhatten distance between given red and blue point"""
-    blue_coords = [coord for coord, cs in board.items() if cs.color == PlayerColor.BLUE]
-    
-    dist = []
+def heuristic(board: dict):
+    blue_coords = []
+    red_coords = []
+
+    for coord, cs in board.items():
+        if cs.color == PlayerColor.BLUE:
+            blue_coords.append(coord)
+        else:
+            red_coords.append(coord)
+
+    n = len(blue_coords)
+    if n == 0:
+        return 0
+    if not red_coords:
+        return 10 ** 9
+
+    max_dist_cost = 0
     for bc in blue_coords:
-        d = abs(red_coord.r - bc.r) + abs(red_coord.c - bc.c)
-        dist.append(d)
-    return min(dist) if dist else 0
+        min_d = min(
+            abs(bc.r - rc.r) + abs(bc.c - rc.c) for rc in red_coords
+        )
+        cost = max(min_d, 1)
+        max_dist_cost = max(max_dist_cost, cost)
+
+    return max(n, max_dist_cost)
  
 def possible_actions(board: dict):
     return 
 
 def search(board: dict[Coord, CellState]) -> list[Action] | None:
-    """
-    This is the entry point for your submission. You should modify this
-    function to solve the search problem discussed in the Part A specification.
-    See `core.py` for information on the types being used here.
+    print(render_board(board, ansi=True))
 
-    Parameters:
-        `board`: a dictionary representing the initial board state, mapping
-            coordinates to `CellState` instances (each with a `.color` and
-            `.height` attribute).
-
-    Returns:
-        A list of actions (MoveAction, EatAction, or CascadeAction), or `None`
-        if no solution is possible.
-    """
-
-    # The render_board() function is handy for debugging. It will print out a
-    # board state in a human-readable format. If your terminal supports ANSI
-    # codes, set the `ansi` flag to True to print a colour-coded version!
-    # print(render_board(board, ansi=True))
-
-    # Do some impressive AI stuff here to find the solution...
-    # ...
-    # ... (your solution goes here!)
-    # ...
-
-    # Here we're returning "hardcoded" actions as an example of the expected
-    # output format. Of course, you should instead return the result of your
-    # search algorithm. Remember: if no solution is possible for a given input,
-    # return `None` instead of a list.
-    # return [
-    #     MoveAction(Coord(3, 3), Direction.Down),
-    #     EatAction(Coord(4, 3), Direction.Down)
-    # ]
     if not is_solvable(board):
         return None
     
@@ -153,7 +138,7 @@ def search(board: dict[Coord, CellState]) -> list[Action] | None:
     ## adding all red tokens to create starting queue
     for coord,cs in board.items():
         if cs.color == PlayerColor.RED:
-            heapq.heappush(node_queue, (heuristic(coord, board), 0, encode(board), [])) ## item (f, g, state, path)
+            heapq.heappush(node_queue, (heuristic(board), 0, encode(board), [])) ## item (f, g, state, path)
             continue
 
     while node_queue:
@@ -170,13 +155,14 @@ def search(board: dict[Coord, CellState]) -> list[Action] | None:
         ## check all possible actions for current board state and add to queue
         for action, new_board in possible_actions(decode(enc)):
             new_enc = encode(new_board)
-            if new_enc in visited:
+            ## check if new state has already been visited or is a duplicate
+            if new_enc in visited or new_enc==enc:
                 continue
 
             new_g = g + 1
-            new_f = new_g + heuristic(coord, decode(new_enc))
-            path = path + [action]
-            heapq.heappush(node_queue, (new_f, new_g, new_enc, path))
+            new_f = new_g + heuristic(decode(new_enc))
+            new_path = path + [action]
+            heapq.heappush(node_queue, (new_f, new_g, new_enc, new_path))
 
     
 
