@@ -43,7 +43,7 @@ def apply_move(board: dict, src: Coord, dir: Direction):
     new_board = dict(board)
     
     if dest in new_board:
-        target = new_board[dest]
+        target = new_board.get(dest)
 
         if target.color == PlayerColor.BLUE:
             print(f"Invalid move: {dest} is occupied by a Blue stack")
@@ -57,6 +57,31 @@ def apply_move(board: dict, src: Coord, dir: Direction):
     moving_stack = new_board.pop(src)
     new_board[dest] = moving_stack
     return new_board
+
+def apply_eat(board: dict, src: Coord, dir: Direction):
+    """Capture enemy stack and moves there."""
+    dest = src + dir
+
+    if src not in board or not in_bounds(dest.r, dest.c):
+        print(f"Invalid eat: {src} or {dest} is not occupied")
+        return board
+    
+    attacker = board.get(src)
+    target = board.get(dest)
+
+    if target is None or target.color != PlayerColor.BLUE:
+        print(f"Invalid eat: {dest} is not occupied by a Blue stack")
+        return board
+    
+    if attacker.height < target.height:
+        print(f"Invalid eat: Attacker height {attacker.height} is less than target height {target.height}")
+        return board
+
+    new_board = dict(board)
+    new_board.pop(src)
+    new_board[dest] = CellState(PlayerColor.RED, attacker.height)
+    return new_board
+
 
 def push_stack(board: dict, coord: Coord, dr: int, dc: int):
     """Push a stack in the given direction, moving it one cell and pushing any stacks in the way."""
