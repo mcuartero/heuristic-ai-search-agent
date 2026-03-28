@@ -31,7 +31,8 @@ def in_bounds(r: int, c: int):
 def blue_count(enc: tuple):
     return sum(1 for _, _, col, _ in enc if col == BLUE)
 
-def apply_move(board: dict, src: Coord, dest: Coord):
+def apply_move(board: dict, src: Coord, dir: Direction):
+    dest = src + dir
     new_board = dict(board)
     moving_stack = new_board.pop(src)
     if dest in new_board:
