@@ -90,53 +90,30 @@ def is_solvable(board: dict) -> bool:
             return False
     return True
 
-_heuristic_cache: dict[tuple, int] = {}
-
 def heuristic(state: tuple, blue_count: int):
     if blue_count == 0:
         return 0
     
-    cached = _heuristic_cache.get(state)
-    if cached is not None:
-        return cached
-    
-    blue_positions = []
     red_positions = []
+    blue_positions = []
 
     for i, cell in enumerate(state):
-        if cell == EMPTY:
+        if cell == 0:
             continue
-        if cell[0] == BLUE_C:
-            blue_positions.append(RC_TABLE[i])
-        else:
+        if cell[0] == 1:
             red_positions.append(RC_TABLE[i])
+        elif cell[0] == 2:
+            blue_positions.append(RC_TABLE[i])
     
     if not red_positions:
-        return 10 ** 9
-    
-    available_reds = list(red_positions)
-    total_cost = 0
+        return 999  # Safety for unsolvable states
 
-    blue_with_dist = sorted(
-    ((min(abs(br - rr) + abs(bc - rc) for rr, rc in available_reds), br, bc)
-     for br, bc in blue_positions),
-    reverse=True
-)
+    max_dist_to_any_blue = 0
+    for br, bc in blue_positions:
+        dist_from_nearest_red = min(abs(br - rr) + abs(bc - rc) for rr, rc in red_positions)
+        max_dist_to_any_blue = max(max_dist_to_any_blue, dist_from_nearest_red)
 
-    for _, br, bc in blue_with_dist:
-        best_idx = min(range(len(available_reds)),
-                       key=lambda k: abs(br - available_reds[k][0]) + abs(bc - available_reds[k][1])
-                       )
-        rr, rc = available_reds[best_idx]
-        dist = max(abs(br - rr) + abs(bc - rc), 1)
-        total_cost += dist
-
-        if len(available_reds) > 1:
-            available_reds.pop(best_idx)
-
-    result = max(blue_count, total_cost)
-    _heuristic_cache[state] = result
-    return result
+    return max(blue_count, max_dist_to_any_blue)
     
  
 def get_moves(state: tuple, blues: int):
