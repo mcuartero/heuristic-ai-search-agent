@@ -6,13 +6,17 @@ from itertools import count
 from .core import CellState, Coord, Direction, Action, MoveAction, EatAction, CascadeAction, BOARD_N, PlayerColor
 from .utils import render_board
 
-RED, BLUE = PlayerColor.RED.value, PlayerColor.BLUE.value
-
-DIRS = [(d, d.r, d.c) for d in Direction]
+RED = PlayerColor.RED.value, 
+BLUE = PlayerColor.BLUE.value
 
 EMPTY = 0
 RED_C = 1
 BLUE_C = 2
+
+DIRS = [(d, d.r, d.c) for d in Direction]
+
+RC_TABLE = [divmod(i, BOARD_N) for i in range(BOARD_N * BOARD_N)]
+COORD_TABLE = [Coord(r, c) for r, c in RC_TABLE]
 
 def encode(board: dict):
     state = [EMPTY] * 64
