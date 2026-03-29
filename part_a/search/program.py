@@ -6,8 +6,8 @@ from itertools import count
 from .core import CellState, Coord, Direction, Action, MoveAction, EatAction, CascadeAction, BOARD_N, PlayerColor
 from .utils import render_board
 
-RED = PlayerColor.RED.value, 
-BLUE = PlayerColor.BLUE.value
+RED = PlayerColor.RED
+BLUE = PlayerColor.BLUE
 
 EMPTY = 0
 RED_C = 1
@@ -43,7 +43,11 @@ def in_bounds(r: int, c: int):
     return 0 <= r < BOARD_N and 0 <= c < BOARD_N
 
 def blue_count(enc: tuple):
-    return sum(1 for _, _, col, _ in enc if col == BLUE)
+    count = 0
+    for cell in enc:
+        if cell != EMPTY and cell[0] == BLUE_C:
+            count += 1
+    return count
 
 def apply_move(board: dict, src: Coord, dir: Direction):
     dest = src + dir
@@ -148,31 +152,53 @@ def is_solvable(board: dict):
 
     return True
 
-def heuristic(board: dict):
-    blue_coords = []
-    red_coords = []
+_heuristic_cache: dict[tuple, int] = {}
 
-    for coord, cs in board.items():
-        if cs.color == PlayerColor.BLUE:
-            blue_coords.append(coord)
-        else:
-            red_coords.append(coord)
-
-    n = len(blue_coords)
-    if n == 0:
+def heuristic(state: tuple, blue_count: int):
+    if blue_count == 0:
         return 0
-    if not red_coords:
-        return 10 ** 9
+    
+    cached = _heuristic_cache.get(state)
+    if cached is not None:
+        return cached
+    
+    blue_positions = []
+    red_positions = []
 
-    max_dist_cost = 0
-    for bc in blue_coords:
-        min_d = min(
-            abs(bc.r - rc.r) + abs(bc.c - rc.c) for rc in red_coords
-        )
-        cost = max(min_d, 1)
-        max_dist_cost = max(max_dist_cost, cost)
+    for i, cell in enumerate(state):
+        if cell == EMPTY:
+            continue
+        if cell[0] == BLUE_C:
+            blue_positions.append(RC_TABLE[i])
+        else:
+            red_positions.append(RC_TABLE[i])
+    
+    if not red_positions:
+        return float('inf')
+    
+    available_reds = list(red_positions)
+    total_cost = 0
 
-    return max(n, max_dist_cost)
+    blue_positions.sort(
+        key=lambda bp: min(abs(bp[0] - rr) + abs(bp[1] - rc) for rr, rc in available_reds),
+        reverse=True
+    )
+
+    for br, bc in blue_positions:
+        best_idx = min(range(len(available_reds)),
+                       key=lambda k: abs(br - available_reds[k][0]) + abs(bc - available_reds[k][1])
+                       )
+        rr, rc = available_reds[best_idx]
+        dist = max(abs(br - rr) + abs(bc - rc), 1)
+        total_cost += dist
+
+        if len(available_reds) > 1:
+            available_reds.pop(best_idx)
+
+    result = max(blue_count, total_cost)
+    _heuristic_cache[state] = result
+    return result
+    
  
 def possible_actions(board: dict):
     """Return a list of (action, resulting_board) for every legal red move."""
@@ -212,44 +238,42 @@ def possible_actions(board: dict):
 def search(board: dict[Coord, CellState]) -> list[Action] | None:
     print(render_board(board, ansi=True))
     tie = count()
-
+ 
     if not is_solvable(board):
         return None
-    
-    initial = encode(board)
+ 
+    initial_state, initial_blues = encode(board)
+    initial = (initial_state, initial_blues)
+ 
     node_queue = []
-    visited = set()
-    parent: dict[tuple, tuple | None] = {initial: None}
-
-    ## adding initial state to queue with f = heuristic, g = 0 and empty path
-    heapq.heappush(node_queue, (heuristic(board), 0, next(tie), initial, [])) ## item (f, g, tie, state, path)
-
+    visited    = set()
+    parent: dict[tuple, tuple | None] = {initial_state: None}
+ 
+    heapq.heappush(node_queue, (heuristic(initial_state, initial_blues), 0, next(tie), initial, []))
+ 
     while node_queue:
-        f, g, t, enc, path = heapq.heappop(node_queue)
-
-        if enc in visited:
+        f, g, t, (state, blues), path = heapq.heappop(node_queue)
+ 
+        if state in visited:
             continue
-        visited.add(enc)
-
-        ## no blue counters left, return path
-        if blue_count(enc) == 0:
+        visited.add(state)
+ 
+        if blues == 0:
             return path
-        
-        ## check all possible actions for current board state and add to queue
-        for action, new_board in possible_actions(decode(enc)):
-            new_enc = encode(new_board)
-            ## check if new state has already been visited or is a duplicate
-            if new_enc in visited or new_enc in parent:
+ 
+        for action, new_board in possible_actions(decode(state)):
+            new_state, new_blues = encode(new_board)
+            if new_state in visited or new_state in parent:
                 continue
-
-            parent[new_enc] = (enc, action)
-            new_g = g + 1
-            new_f = new_g + heuristic(new_board)
-            new_path = path + [action]
-            heapq.heappush(node_queue, (new_f, new_g, next(tie), new_enc, new_path))
+            parent[new_state] = (state, action)
+            new_g   = g + 1
+            new_f   = new_g + heuristic(new_state, new_blues)
+            new_enc = (new_state, new_blues)
+            heapq.heappush(node_queue, (new_f, new_g, next(tie), new_enc, path + [action]))
+ 
     return None
 
-if __name__ == "__main__":
-    # Create a dummy board
-    dummy_board = {} 
-    search(dummy_board)
+# if __name__ == "__main__":
+#     # Create a dummy board
+#     dummy_board = {} 
+#     search(dummy_board)
