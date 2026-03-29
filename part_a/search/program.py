@@ -42,114 +42,52 @@ def decode(state: tuple):
 def in_bounds(r: int, c: int):
     return 0 <= r < BOARD_N and 0 <= c < BOARD_N
 
-def blue_count(enc: tuple):
-    count = 0
-    for cell in enc:
-        if cell != EMPTY and cell[0] == BLUE_C:
-            count += 1
-    return count
-
-def apply_move(board: dict, src: Coord, dir: Direction):
-    dest = src + dir
-
-    # Add if we decide that we want to allow moves that push tokens off the board, but for now just ignore them
-    # if not in_bounds(dest.r, dest.c):
-    #     print(f"Invalid move: {src} + {dir} = {dest} is out of bounds")
-    #     return board
-
-    new_board = dict(board)
-    
-    if dest in new_board:
-        target = new_board.get(dest)
-
-        if target.color == PlayerColor.BLUE:
-            print(f"Invalid move: {dest} is occupied by a Blue stack")
-            return board 
-        
-        elif target.color == PlayerColor.RED:
-            moving_stack = new_board.pop(src)
-            new_board[dest] = CellState(PlayerColor.RED, moving_stack.height + target.height)
-            return new_board
-    
-    moving_stack = new_board.pop(src)
-    new_board[dest] = moving_stack
-    return new_board
-
-def apply_eat(board: dict, src: Coord, dir: Direction):
-    """Capture enemy stack and moves there."""
-    dest = src + dir
-
-    if src not in board or not in_bounds(dest.r, dest.c):
-        print(f"Invalid eat: {src} or {dest} is not occupied")
-        return board
-    
-    attacker = board.get(src)
-    target = board.get(dest)
-
-    if target is None or target.color != PlayerColor.BLUE:
-        print(f"Invalid eat: {dest} is not occupied by a Blue stack")
-        return board
-    
-    if attacker.height < target.height:
-        print(f"Invalid eat: Attacker height {attacker.height} is less than target height {target.height}")
-        return board
-
-    new_board = dict(board)
-    new_board.pop(src)
-    new_board[dest] = CellState(PlayerColor.RED, attacker.height)
-    return new_board
-
-
-def push_stack(board: dict, coord: Coord, dr: int, dc: int):
-    """Push a stack in the given direction, moving it one cell and pushing any stacks in the way."""
-    stack = board.get(coord)
-    if stack is None:
-        return
-    nr, nc = coord.r + dr, coord.c + dc
-    if not in_bounds(nr, nc):
-        del board[coord]
-        return
-    next_coord = Coord(nr, nc)
-    push_stack(board, next_coord, dr, dc)
-    del board[coord]
-    board[next_coord] = stack
-
-def apply_cascade(board: dict, src: Coord, direction: Direction):
-    new_board = dict(board)
-    h = new_board.pop(src).height
-    dr, dc = direction.value.r, direction.value.c
+def apply_cascade(state: tuple, i: int, r: int, c: int, dr: int, dc: int, height: int):
+    new = list(state)
+    new[i] = EMPTY
+    blue_delta = 0
  
-    for i in range(1, h + 1):
-        pr, pc = src.r + dr * i, src.c + dc * i
-        if not in_bounds(pr, pc):
+    for step in range(1, height + 1):
+        cr, cc = r + dr * step, c + dc * step
+        if not (0 <= cr < BOARD_N and 0 <= cc < BOARD_N):
             continue
-        place = Coord(pr, pc)
-        push_stack(new_board, place, dr, dc)
-        new_board[place] = CellState(PlayerColor.RED, 1)
  
-    return new_board
+        idx = cr * BOARD_N + cc
 
-def blue_is_pushable_off_board(blue_coord: Coord, board: dict, total_red_tokens: int) -> bool:
-    # checks if height is enough to cascade the blue token off the board
-    blue_dist_row = min(blue_coord.r, abs(BOARD_N - 1 - blue_coord.r))
-    blue_dist_col = min(blue_coord.c, abs(BOARD_N - 1 - blue_coord.c))
-    if total_red_tokens >= blue_dist_row or total_red_tokens >= blue_dist_col:
-        return True
-    return False
+        if new[idx] != EMPTY:
+            chain = []
+            pr, pc = cr, cc
+            while 0 <= pr < BOARD_N and 0 <= pc < BOARD_N and new[pr * BOARD_N + pc] != EMPTY:
+                chain.append(pr * BOARD_N + pc)
+                pr += dr
+                pc += dc
+            for cidx in reversed(chain):
+                pr2, pc2 = RC_TABLE[cidx]
+                npr, npc = pr2 + dr, pc2 + dc
+                if 0 <= npr < BOARD_N and 0 <= npc < BOARD_N:
+                    new[npr * BOARD_N + npc] = new[cidx]
+                else:
+                    # Stack pushed off the board — update blue count if it was blue
+                    if new[cidx][0] == BLUE_C:
+                        blue_delta -= 1
+                new[cidx] = EMPTY
+ 
+        new[idx] = (RED_C, 1)
+ 
+    return tuple(new), blue_delta
 
-
-def is_solvable(board: dict):
-    """Check if board is solvable either by eating or cascading"""
-    total_red_tokens = sum(cs.height for cs in board.values() if cs.color == PlayerColor.RED)
-
+def is_solvable(board: dict) -> bool:
+    total_red_tokens = sum(cs.height for cs in board.values() if cs.color == RED)
     for coord, cs in board.items():
-        if cs.color != PlayerColor.BLUE:
+        if cs.color != BLUE:
             continue
-        can_eat = total_red_tokens >= cs.height
-        can_push = blue_is_pushable_off_board(coord, board, total_red_tokens)
-        if not can_eat and not can_push:
+        can_eat        = total_red_tokens >= cs.height
+        dist_to_edge_r = min(coord.r, BOARD_N - 1 - coord.r)
+        dist_to_edge_c = min(coord.c, BOARD_N - 1 - coord.c)
+        can_push_off   = (total_red_tokens >= dist_to_edge_r or
+                          total_red_tokens >= dist_to_edge_c)
+        if not can_eat and not can_push_off:
             return False
-
     return True
 
 _heuristic_cache: dict[tuple, int] = {}
@@ -174,17 +112,18 @@ def heuristic(state: tuple, blue_count: int):
             red_positions.append(RC_TABLE[i])
     
     if not red_positions:
-        return float('inf')
+        return 10 ** 9
     
     available_reds = list(red_positions)
     total_cost = 0
 
-    blue_positions.sort(
-        key=lambda bp: min(abs(bp[0] - rr) + abs(bp[1] - rc) for rr, rc in available_reds),
-        reverse=True
-    )
+    blue_with_dist = sorted(
+    ((min(abs(br - rr) + abs(bc - rc) for rr, rc in available_reds), br, bc)
+     for br, bc in blue_positions),
+    reverse=True
+)
 
-    for br, bc in blue_positions:
+    for _, br, bc in blue_with_dist:
         best_idx = min(range(len(available_reds)),
                        key=lambda k: abs(br - available_reds[k][0]) + abs(bc - available_reds[k][1])
                        )
@@ -200,39 +139,40 @@ def heuristic(state: tuple, blue_count: int):
     return result
     
  
-def possible_actions(board: dict):
-    """Return a list of (action, resulting_board) for every legal red move."""
+def get_moves(state: tuple, blues: int):
     results = []
-
-    for coord, cell in list(board.items()):
-        if cell.color != PlayerColor.RED:
+ 
+    for i, cell in enumerate(state):
+        if cell == EMPTY or cell[0] == BLUE_C:
             continue
-
-        r, c, h = coord.r, coord.c, cell.height
-
+ 
+        _, height = cell
+        r, c  = RC_TABLE[i]
+        coord = COORD_TABLE[i]
+ 
         for direction, dr, dc in DIRS:
             nr, nc = r + dr, c + dc
+ 
+            if 0 <= nr < BOARD_N and 0 <= nc < BOARD_N:
+                j           = nr * BOARD_N + nc
+                target_cell = state[j]
 
-            if in_bounds(nr, nc):
-                dest_cell = board.get(Coord(nr, nc))
+                if target_cell == EMPTY or target_cell[0] == RED_C:
+                    new = list(state)
+                    new[i] = EMPTY
+                    new[j] = (RED_C, height + (target_cell[1] if target_cell != EMPTY else 0))
+                    results.append((MoveAction(coord, direction), tuple(new), blues))
 
-                # MOVE: to empty cell or onto a friendly stack
-                if dest_cell is None or dest_cell.color == PlayerColor.RED:
-                    nb = apply_move(board, coord, direction)
-                    results.append((MoveAction(coord, direction), nb))
+                elif target_cell[0] == BLUE_C and height >= target_cell[1]:
+                    new = list(state)
+                    new[i] = EMPTY
+                    new[j] = (RED_C, height)
+                    results.append((EatAction(coord, direction), tuple(new), blues - 1))
 
-                # EAT: capture an adjacent enemy if tall enough
-                if (dest_cell is not None
-                        and dest_cell.color == PlayerColor.BLUE
-                        and h >= dest_cell.height):
-                    nb = apply_eat(board, coord, direction)
-                    results.append((EatAction(coord, direction), nb))
-
-            # CASCADE: only for stacks of height >= 2
-            if h >= 2:
-                nb = apply_cascade(board, coord, direction)
-                results.append((CascadeAction(coord, direction), nb))
-
+            if height >= 2:
+                new_state, blue_delta = apply_cascade(state, i, r, c, dr, dc, height)
+                results.append((CascadeAction(coord, direction), new_state, blues + blue_delta))
+ 
     return results
 
 def search(board: dict[Coord, CellState]) -> list[Action] | None:
@@ -243,37 +183,36 @@ def search(board: dict[Coord, CellState]) -> list[Action] | None:
         return None
  
     initial_state, initial_blues = encode(board)
-    initial = (initial_state, initial_blues)
  
-    node_queue = []
-    visited    = set()
+    g_best = {initial_state: 0}
     parent: dict[tuple, tuple | None] = {initial_state: None}
  
-    heapq.heappush(node_queue, (heuristic(initial_state, initial_blues), 0, next(tie), initial, []))
+    h0   = heuristic(initial_state, initial_blues)
+    heap = [(h0, 0, next(tie), initial_state, initial_blues)]
  
-    while node_queue:
-        f, g, t, (state, blues), path = heapq.heappop(node_queue)
+    while heap:
+        f, g, _, state, blues = heapq.heappop(heap)
  
-        if state in visited:
+        if g > g_best.get(state, 10 ** 9):
             continue
-        visited.add(state)
- 
+
         if blues == 0:
+            path = []
+            cur  = state
+            while parent[cur] is not None:
+                prev, action = parent[cur]
+                path.append(action)
+                cur = prev
+            path.reverse()
             return path
  
-        for action, new_board in possible_actions(decode(state)):
-            new_state, new_blues = encode(new_board)
-            if new_state in visited or new_state in parent:
+        for action, next_state, new_blues in get_moves(state, blues):
+            new_g = g + 1
+            if new_g >= g_best.get(next_state, 10 ** 9):
                 continue
-            parent[new_state] = (state, action)
-            new_g   = g + 1
-            new_f   = new_g + heuristic(new_state, new_blues)
-            new_enc = (new_state, new_blues)
-            heapq.heappush(node_queue, (new_f, new_g, next(tie), new_enc, path + [action]))
+            g_best[next_state] = new_g
+            parent[next_state] = (state, action)
+            new_f = new_g + heuristic(next_state, new_blues)
+            heapq.heappush(heap, (new_f, new_g, next(tie), next_state, new_blues))
  
     return None
-
-# if __name__ == "__main__":
-#     # Create a dummy board
-#     dummy_board = {} 
-#     search(dummy_board)
