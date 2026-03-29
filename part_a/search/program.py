@@ -4,7 +4,7 @@ import heapq
 from itertools import count
 
 from .core import CellState, Coord, Direction, Action, MoveAction, EatAction, CascadeAction, BOARD_N, PlayerColor
-from .utils import render_board
+
 
 RED = PlayerColor.RED
 BLUE = PlayerColor.BLUE
@@ -13,12 +13,13 @@ EMPTY = 0
 RED_C = 1
 BLUE_C = 2
 
-DIRS = [(d, d.r, d.c) for d in Direction]
+DIRS = [(d, d.r, d.c) for d in Direction] # cached direction for lookups
 
 RC_TABLE = [divmod(i, BOARD_N) for i in range(BOARD_N * BOARD_N)]
 COORD_TABLE = [Coord(r, c) for r, c in RC_TABLE]
 
 def encode(board: dict):
+    """Converts the board dictionary into a tuple state representation and counts the number of blue pieces."""
     state = [EMPTY] * (BOARD_N * BOARD_N)
     blue_count = 0
     
@@ -28,6 +29,7 @@ def encode(board: dict):
             
         idx = coord.r * BOARD_N + coord.c
         
+        # Track blue cound in encoded state for heuristic
         if cell.color == BLUE:
             state[idx] = (BLUE_C, cell.height)
             blue_count += 1
@@ -37,6 +39,7 @@ def encode(board: dict):
     return tuple(state), blue_count
 
 def decode(state: tuple):
+    """Converts the tuple state representation back into the board dictionary format."""
     board = {}
     for i, cell in enumerate(state):
         if cell == EMPTY:
@@ -49,6 +52,7 @@ def decode(state: tuple):
     return board
 
 def apply_cascade(state: tuple, i: int, r: int, c: int, dr: int, dc: int, height: int):
+    """Simulates the cascade effect when a piece of height >= 2 moves in a direction."""
     new = list(state)
     new[i] = EMPTY
     blue_delta = 0
@@ -59,7 +63,7 @@ def apply_cascade(state: tuple, i: int, r: int, c: int, dr: int, dc: int, height
             continue
  
         idx = cr * BOARD_N + cc
-
+        # collision pushes chain forward until an empty cell or the edge of the board is reached
         if new[idx] != EMPTY:
             er, ec = cr, cc
             while 0 <= er + dr < BOARD_N and 0 <= ec + dc < BOARD_N and \
@@ -81,7 +85,7 @@ def apply_cascade(state: tuple, i: int, r: int, c: int, dr: int, dc: int, height
                 if (curr_r, curr_c) == (cr, cc):
                     break
                 curr_r, curr_c = curr_r - dr, curr_c - dc
-
+        # if the cascade pushes a blue piece off the board blue_count is updated
         elif state[idx] != EMPTY and state[idx][0] == BLUE_C:
              blue_delta -= 1
              
@@ -90,6 +94,8 @@ def apply_cascade(state: tuple, i: int, r: int, c: int, dr: int, dc: int, height
     return tuple(new), blue_delta
 
 def heuristic(state: tuple, blue_count: int):
+    """Estimates the cost to reach the goal state from the current state. 
+    Takes into account the number of blue pieces and their distance to red pieces."""
     if blue_count == 0:
         return 0
 
@@ -104,11 +110,13 @@ def heuristic(state: tuple, blue_count: int):
         d = min(abs(b.r - r.r) + abs(b.c - r.c) for r in red_pts)
         if d > max_min_dist:
             max_min_dist = d
-
+    # lower bound, need at least blue_count moves to eat all blues, 
+    # and at least max_min_dist moves to get the furthest blue into range of a red piece
     return max(blue_count, max_min_dist)
     
  
 def get_moves(state: tuple, blues: int):
+    """Generates all legal moves from the current state, including normal moves, eat actions, and cascade actions."""
     results = []
     for i, cell in enumerate(state):
         if cell == EMPTY or cell[0] != RED_C:
@@ -123,7 +131,8 @@ def get_moves(state: tuple, blues: int):
             if 0 <= nr < BOARD_N and 0 <= nc < BOARD_N:
                 idx = nr * BOARD_N + nc
                 target = state[idx]
-
+                # choose either eat or move action if target cell is empty 
+                # or occupied by a blue piece of equal or lesser height
                 if target == EMPTY or target[0] == RED_C:
                     new = list(state)
                     new[i] = EMPTY
@@ -143,7 +152,7 @@ def get_moves(state: tuple, blues: int):
     return results
 
 def search(board: dict[Coord, CellState]) -> list[Action] | None:
-    print(render_board(board, ansi=True))
+    """Performs an A* search to find the optimal sequence of actions to eliminate all blue pieces from the board."""
     tie = count()
  
     initial_state, initial_blues = encode(board)
@@ -156,13 +165,15 @@ def search(board: dict[Coord, CellState]) -> list[Action] | None:
  
     while heap:
         f, g, _, state, blues = heapq.heappop(heap)
- 
+
+        # skip if we've already found a better path to this state
         if g > g_best.get(state, 10 ** 9):
             continue
 
         if blues == 0:
             path = []
             cur  = state
+            # reconstruct action sequence by following parent pointers back to the initial state
             while parent[cur] is not None:
                 prev, action = parent[cur]
                 path.append(action)
