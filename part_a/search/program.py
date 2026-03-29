@@ -8,23 +8,28 @@ from .utils import render_board
 
 RED, BLUE = PlayerColor.RED.value, PlayerColor.BLUE.value
 
-DIRS: list[tuple[Direction, int, int]] = [
-    (d, d.value.r, d.value.c) for d in Direction
-]
+DIRS = [(d, d.r, d.c) for d in Direction]
+
+EMPTY = 0
+RED_C = 1
+BLUE_C = 2
 
 def encode(board: dict):
-    return tuple(sorted(
-        (coord.r, coord.c, cell.color.value, cell.height)
-        for coord, cell in board.items()
-    ))
+    state = [EMPTY] * 64
+    for coord, cell in board.items():
+        color_int = RED_C if cell.color == PlayerColor.RED else BLUE_C
+        state[coord.r * BOARD_N + coord.c] = (color_int, cell.height)
+        return tuple(state)
 
-def decode(enc: tuple):
-    return {
-        Coord(r, c): CellState(
-            PlayerColor.RED if col == RED else PlayerColor.BLUE, h
-        )
-        for r, c, col, h in enc
-    }
+def decode(state: tuple):
+    board = {}
+    for i, cell in enumerate(state):
+        if cell == EMPTY:
+            continue
+        color_int, height = cell
+        r, c = divmod(i, BOARD_N)
+        board[Coord(r, c)] = CellState(RED if color_int == RED_C else BLUE, height)
+    return board
 
 def in_bounds(r: int, c: int):
     return 0 <= r < BOARD_N and 0 <= c < BOARD_N
