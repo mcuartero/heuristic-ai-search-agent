@@ -54,14 +54,14 @@ def run_test_and_visualize(csv_data: str):
     print("\n### TEST COMPLETE")
 
 test_case = """
- , , , , , , ,
- B1, , , , , , ,
- R1, , , , , , ,
- , , , , , , ,
- , ,B1, , , ,R2,
- , , , , , , ,
- , , , , , ,  ,
- , , , , , ,B3,
+ , , , , , , , 
+ ,R2, , , , , , 
+ , , , , , , , 
+ , ,B3, , , , , 
+ , , , , , , , 
+ , , , , , ,R3, 
+ , , , , , , , 
+ , , , , , ,B1,
  """
     
 run_test_and_visualize(test_case)

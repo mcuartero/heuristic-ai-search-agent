@@ -19,14 +19,21 @@ RC_TABLE = [divmod(i, BOARD_N) for i in range(BOARD_N * BOARD_N)]
 COORD_TABLE = [Coord(r, c) for r, c in RC_TABLE]
 
 def encode(board: dict):
-    state = [EMPTY] * 64
+    state = [EMPTY] * (BOARD_N * BOARD_N)
     blue_count = 0
+    
     for coord, cell in board.items():
+        if cell.is_empty:
+            continue
+            
+        idx = coord.r * BOARD_N + coord.c
+        
         if cell.color == BLUE:
-            state[coord.r * BOARD_N + coord.c] = (BLUE_C, cell.height)
+            state[idx] = (BLUE_C, cell.height)
             blue_count += 1
         else:
-            state[coord.r * BOARD_N + coord.c] = (RED_C, cell.height)
+            state[idx] = (RED_C, cell.height)
+            
     return tuple(state), blue_count
 
 def decode(state: tuple):
@@ -34,19 +41,18 @@ def decode(state: tuple):
     for i, cell in enumerate(state):
         if cell == EMPTY:
             continue
+        
         color_int, height = cell
-        r, c = RC_TABLE[i]
-        board[Coord(r, c)] = CellState(RED if color_int == RED_C else BLUE, height)
-    return board
+        coord = COORD_TABLE[i]
 
-def in_bounds(r: int, c: int):
-    return 0 <= r < BOARD_N and 0 <= c < BOARD_N
+        board[coord] = CellState(RED if color_int == RED_C else BLUE, height)
+    return board
 
 def apply_cascade(state: tuple, i: int, r: int, c: int, dr: int, dc: int, height: int):
     new = list(state)
     new[i] = EMPTY
     blue_delta = 0
- 
+
     for step in range(1, height + 1):
         cr, cc = r + dr * step, c + dc * step
         if not (0 <= cr < BOARD_N and 0 <= cc < BOARD_N):
@@ -55,109 +61,90 @@ def apply_cascade(state: tuple, i: int, r: int, c: int, dr: int, dc: int, height
         idx = cr * BOARD_N + cc
 
         if new[idx] != EMPTY:
-            chain = []
-            pr, pc = cr, cc
-            while 0 <= pr < BOARD_N and 0 <= pc < BOARD_N and new[pr * BOARD_N + pc] != EMPTY:
-                chain.append(pr * BOARD_N + pc)
-                pr += dr
-                pc += dc
-            for cidx in reversed(chain):
-                pr2, pc2 = RC_TABLE[cidx]
-                npr, npc = pr2 + dr, pc2 + dc
-                if 0 <= npr < BOARD_N and 0 <= npc < BOARD_N:
-                    new[npr * BOARD_N + npc] = new[cidx]
+            er, ec = cr, cc
+            while 0 <= er + dr < BOARD_N and 0 <= ec + dc < BOARD_N and \
+                  new[(er + dr) * BOARD_N + (ec + dc)] != EMPTY:
+                er += dr
+                ec += dc
+
+            curr_r, curr_c = er, ec
+            while True:
+                curr_idx = curr_r * BOARD_N + curr_c
+                next_r, next_c = curr_r + dr, curr_c + dc
+                
+                if 0 <= next_r < BOARD_N and 0 <= next_c < BOARD_N:
+                    new[next_r * BOARD_N + next_c] = new[curr_idx]
                 else:
-                    # Stack pushed off the board — update blue count if it was blue
-                    if new[cidx][0] == BLUE_C:
+                    if new[curr_idx][0] == BLUE_C:
                         blue_delta -= 1
-                new[cidx] = EMPTY
- 
+                
+                if (curr_r, curr_c) == (cr, cc):
+                    break
+                curr_r, curr_c = curr_r - dr, curr_c - dc
+
+        elif state[idx] != EMPTY and state[idx][0] == BLUE_C:
+             blue_delta -= 1
+             
         new[idx] = (RED_C, 1)
  
     return tuple(new), blue_delta
 
-def is_solvable(board: dict) -> bool:
-    total_red_tokens = sum(cs.height for cs in board.values() if cs.color == RED)
-    for coord, cs in board.items():
-        if cs.color != BLUE:
-            continue
-        can_eat        = total_red_tokens >= cs.height
-        dist_to_edge_r = min(coord.r, BOARD_N - 1 - coord.r)
-        dist_to_edge_c = min(coord.c, BOARD_N - 1 - coord.c)
-        can_push_off   = (total_red_tokens >= dist_to_edge_r or
-                          total_red_tokens >= dist_to_edge_c)
-        if not can_eat and not can_push_off:
-            return False
-    return True
-
 def heuristic(state: tuple, blue_count: int):
     if blue_count == 0:
         return 0
-    
-    red_positions = []
-    blue_positions = []
 
-    for i, cell in enumerate(state):
-        if cell == 0:
-            continue
-        if cell[0] == 1:
-            red_positions.append(RC_TABLE[i])
-        elif cell[0] == 2:
-            blue_positions.append(RC_TABLE[i])
-    
-    if not red_positions:
-        return 999  # Safety for unsolvable states
+    red_pts = [COORD_TABLE[i] for i, cell in enumerate(state) if cell != EMPTY and cell[0] == RED_C]
+    if not red_pts: 
+        return 999 
 
-    max_dist_to_any_blue = 0
-    for br, bc in blue_positions:
-        dist_from_nearest_red = min(abs(br - rr) + abs(bc - rc) for rr, rc in red_positions)
-        max_dist_to_any_blue = max(max_dist_to_any_blue, dist_from_nearest_red)
+    blue_gen = (COORD_TABLE[i] for i, cell in enumerate(state) if cell != EMPTY and cell[0] == BLUE_C)
 
-    return max(blue_count, max_dist_to_any_blue)
+    max_min_dist = 0
+    for b in blue_gen:
+        d = min(abs(b.r - r.r) + abs(b.c - r.c) for r in red_pts)
+        if d > max_min_dist:
+            max_min_dist = d
+
+    return max(blue_count, max_min_dist)
     
  
 def get_moves(state: tuple, blues: int):
     results = []
- 
     for i, cell in enumerate(state):
-        if cell == EMPTY or cell[0] == BLUE_C:
+        if cell == EMPTY or cell[0] != RED_C:
             continue
- 
-        _, height = cell
-        r, c  = RC_TABLE[i]
-        coord = COORD_TABLE[i]
- 
-        for direction, dr, dc in DIRS:
-            nr, nc = r + dr, c + dc
- 
-            if 0 <= nr < BOARD_N and 0 <= nc < BOARD_N:
-                j           = nr * BOARD_N + nc
-                target_cell = state[j]
 
-                if target_cell == EMPTY or target_cell[0] == RED_C:
+        _, height = cell
+        coord = COORD_TABLE[i]
+
+        for direction, dr, dc in DIRS:
+            nr, nc = coord.r + dr, coord.c + dc
+
+            if 0 <= nr < BOARD_N and 0 <= nc < BOARD_N:
+                idx = nr * BOARD_N + nc
+                target = state[idx]
+
+                if target == EMPTY or target[0] == RED_C:
                     new = list(state)
                     new[i] = EMPTY
-                    new[j] = (RED_C, height + (target_cell[1] if target_cell != EMPTY else 0))
+                    new[idx] = (RED_C, height + (target[1] if target != EMPTY else 0))
                     results.append((MoveAction(coord, direction), tuple(new), blues))
 
-                elif target_cell[0] == BLUE_C and height >= target_cell[1]:
+                elif height >= target[1]: 
                     new = list(state)
                     new[i] = EMPTY
-                    new[j] = (RED_C, height)
+                    new[idx] = (RED_C, height)
                     results.append((EatAction(coord, direction), tuple(new), blues - 1))
 
             if height >= 2:
-                new_state, blue_delta = apply_cascade(state, i, r, c, dr, dc, height)
-                results.append((CascadeAction(coord, direction), new_state, blues + blue_delta))
- 
+                new_state, b_delta = apply_cascade(state, i, coord.r, coord.c, dr, dc, height)
+                results.append((CascadeAction(coord, direction), new_state, blues + b_delta))
+                
     return results
 
 def search(board: dict[Coord, CellState]) -> list[Action] | None:
     print(render_board(board, ansi=True))
     tie = count()
- 
-    if not is_solvable(board):
-        return None
  
     initial_state, initial_blues = encode(board)
  
