@@ -1,7 +1,7 @@
 # COMP30024 Artificial Intelligence, Semester 1 2026
 # Project Part A: Single Player Cascade
 import heapq
-from operator import __add__
+from itertools import count
 
 from .core import CellState, Coord, Direction, Action, MoveAction, EatAction, CascadeAction, BOARD_N, PlayerColor
 from .utils import render_board
@@ -162,25 +162,57 @@ def heuristic(board: dict):
     return max(n, max_dist_cost)
  
 def possible_actions(board: dict):
-    return 
+    """Return a list of (action, resulting_board) for every legal red move."""
+    results = []
+
+    for coord, cell in list(board.items()):
+        if cell.color != PlayerColor.RED:
+            continue
+
+        r, c, h = coord.r, coord.c, cell.height
+
+        for direction, dr, dc in DIRS:
+            nr, nc = r + dr, c + dc
+
+            if in_bounds(nr, nc):
+                dest_cell = board.get(Coord(nr, nc))
+
+                # MOVE: to empty cell or onto a friendly stack
+                if dest_cell is None or dest_cell.color == PlayerColor.RED:
+                    nb = apply_move(board, coord, direction)
+                    results.append((MoveAction(coord, direction), nb))
+
+                # EAT: capture an adjacent enemy if tall enough
+                if (dest_cell is not None
+                        and dest_cell.color == PlayerColor.BLUE
+                        and h >= dest_cell.height):
+                    nb = apply_eat(board, coord, direction)
+                    results.append((EatAction(coord, direction), nb))
+
+            # CASCADE: only for stacks of height >= 2
+            if h >= 2:
+                nb = apply_cascade(board, coord, direction)
+                results.append((CascadeAction(coord, direction), nb))
+
+    return results
 
 def search(board: dict[Coord, CellState]) -> list[Action] | None:
     print(render_board(board, ansi=True))
+    tie = count()
 
     if not is_solvable(board):
         return None
     
+    initial = encode(board)
     node_queue = []
     visited = set()
+    parent: dict[tuple, tuple | None] = {initial: None}
 
-    ## adding all red tokens to create starting queue
-    for coord,cs in board.items():
-        if cs.color == PlayerColor.RED:
-            heapq.heappush(node_queue, (heuristic(board), 0, encode(board), [])) ## item (f, g, state, path)
-            continue
+    ## adding initial state to queue with f = heuristic, g = 0 and empty path
+    heapq.heappush(node_queue, (heuristic(board), 0, next(tie), initial, [])) ## item (f, g, tie, state, path)
 
     while node_queue:
-        f, g, enc, path = heapq.heappop(node_queue)
+        f, g, t, enc, path = heapq.heappop(node_queue)
 
         if enc in visited:
             continue
@@ -194,13 +226,15 @@ def search(board: dict[Coord, CellState]) -> list[Action] | None:
         for action, new_board in possible_actions(decode(enc)):
             new_enc = encode(new_board)
             ## check if new state has already been visited or is a duplicate
-            if new_enc in visited or new_enc==enc:
+            if new_enc in visited or new_enc in parent:
                 continue
 
+            parent[new_enc] = (enc, action)
             new_g = g + 1
-            new_f = new_g + heuristic(decode(new_enc))
+            new_f = new_g + heuristic(new_board)
             new_path = path + [action]
-            heapq.heappush(node_queue, (new_f, new_g, new_enc, new_path))
+            heapq.heappush(node_queue, (new_f, new_g, next(tie), new_enc, new_path))
+    return None
 
 if __name__ == "__main__":
     # Create a dummy board
