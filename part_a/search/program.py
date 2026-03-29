@@ -20,10 +20,14 @@ COORD_TABLE = [Coord(r, c) for r, c in RC_TABLE]
 
 def encode(board: dict):
     state = [EMPTY] * 64
+    blue_count = 0
     for coord, cell in board.items():
-        color_int = RED_C if cell.color == PlayerColor.RED else BLUE_C
-        state[coord.r * BOARD_N + coord.c] = (color_int, cell.height)
-        return tuple(state)
+        if cell.color == BLUE:
+            state[coord.r * BOARD_N + coord.c] = (BLUE_C, cell.height)
+            blue_count += 1
+        else:
+            state[coord.r * BOARD_N + coord.c] = (RED_C, cell.height)
+    return tuple(state), blue_count
 
 def decode(state: tuple):
     board = {}
@@ -31,7 +35,7 @@ def decode(state: tuple):
         if cell == EMPTY:
             continue
         color_int, height = cell
-        r, c = divmod(i, BOARD_N)
+        r, c = RC_TABLE[i]
         board[Coord(r, c)] = CellState(RED if color_int == RED_C else BLUE, height)
     return board
 
